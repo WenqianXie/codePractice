@@ -1,81 +1,81 @@
 package com.example.todo_app.controller;
 
+import com.example.todo_app.dto.CompleteTodoResponseDto;
+import com.example.todo_app.dto.UpdateTodoRequestDto;
 import com.example.todo_app.model.Todo;
-import com.example.todo_app.service.TodoService;
+import com.example.todo_app.service.interfaces.TodoCompletionService;
+import com.example.todo_app.service.interfaces.TodoCrudService;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+
+import com.example.todo_app.dto.CreateTodoRequestDto;
+import com.example.todo_app.dto.TodoResponseDto;
+import com.example.todo_app.mapper.TodoDtoMapper;
+
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
-@RestController  // Tells Spring this class handles REST API requests
-@RequestMapping("/api/todos")  // Base URL for all methods in this class
+@RestController
+@RequestMapping("/api/todos")
 public class TodoController {
+    private final TodoCrudService todoCrudService;
+    private final TodoCompletionService todoCompletionService;
+    private final TodoDtoMapper todoDtoMapper;
 
-    @Autowired  // Tell Spring to inject TodoService
-    private TodoService todoService;
-
-    @GetMapping("/test")  // Handles GET request to /api/todos/test
-    public String test() {
-        return "API works!";  // Returns plain text
+    public TodoController(TodoCrudService todoCrudService, TodoCompletionService todoCompletionService, TodoDtoMapper todoDtoMapper) {
+        this.todoCrudService = todoCrudService;
+        this.todoCompletionService = todoCompletionService;
+        this.todoDtoMapper = todoDtoMapper;
     }
 
-    // Get all todos
-    @GetMapping  // No path means use base path: /api/todos
-    public List<Todo> getAllTodos() {
-        return todoService.getAllTodos();
+    @GetMapping
+    public ResponseEntity<List<TodoResponseDto>> getAllTodos() {
+        List<Todo> todos = todoCrudService.getAllTodos();
+        List<TodoResponseDto> response = todos.stream()
+                .map(todoDtoMapper::toResponse)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+    @PostMapping
+    public ResponseEntity<TodoResponseDto> createTodo(@RequestBody CreateTodoRequestDto request) {
+        Todo todo = todoDtoMapper.toModel(request);
+        Todo created = todoCrudService.createTodo(todo);
+        return ResponseEntity.ok(todoDtoMapper.toResponse(created));
     }
 
-    // Create new todo
-    @PostMapping  // Handles POST requests to /api/todos
-    public Todo createTodo(@RequestBody Todo todo){
-        return todoService.createTodo(todo);
+    @PutMapping("/{id}")
+    public ResponseEntity<TodoResponseDto> updateTodo(@PathVariable String id,
+                                                      @RequestBody UpdateTodoRequestDto request) {
+        Todo updateData = todoDtoMapper.toModel(request);
+        Todo updated = todoCrudService.updateTodo(id, updateData);
+        return ResponseEntity.ok(todoDtoMapper.toResponse(updated));
     }
 
-    // Complete a todo
-    @PutMapping("/{id}/complete") // PUT /api/todos/1/complete
-    public Map<String, Object> completeTodo(@PathVariable Long id){
-        return todoService.completeTodo(id);
+    @DeleteMapping("/{id}")
+    public ResponseEntity<TodoResponseDto> deleteTodo(@PathVariable String id) {
+        Todo deleted = todoCrudService.deleteTodo(id);
+        return ResponseEntity.ok(todoDtoMapper.toResponse(deleted));
     }
 
-    // Get user statistics
-    @GetMapping("/stats") // GET /api/todos/stats
-    public Map<String, Object> getStats() {
-        return todoService.getStats();
+    @PutMapping("/{id}/complete")
+    public ResponseEntity<CompleteTodoResponseDto> completeTodo(@PathVariable String id) {
+        Todo completed = todoCompletionService.completeTodo(id);
+        TodoResponseDto todoDto = todoDtoMapper.toResponse(completed);
+        CompleteTodoResponseDto response = new CompleteTodoResponseDto(
+                todoDto,
+                completed.getEarnedPoints(),
+                "Todo completed! You earned " + completed.getEarnedPoints() + " points!"
+        );
+
+        return ResponseEntity.ok(response);
     }
 
-    // Update a todo
-    @PutMapping("/{id}")  // PUT /api/todos/1
-    public Map<String, Object> updateTodo(@PathVariable Long id, @RequestBody Todo updatedTodo) {
-        Todo updated = todoService.updateTodo(id, updatedTodo);
-
-        if (updated == null) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("error", "Todo not found");
-            return error;
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("message", "Todo updated successfully");
-        result.put("todo", updated);
-        return result;
-    }
-
-
-    @DeleteMapping("/{id}")  // DELETE /api/todos/1
-    public Map<String, Object> deleteTodo(@PathVariable Long id) {
-        Todo deleted = todoService.deleteTodo(id);
-
-        if (deleted == null) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("error", "Todo not found");
-            return error;
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("message", "Todo deleted successfully");
-        result.put("deletedTodo", deleted);
-        return result;
+    @GetMapping("/{id}")
+    public ResponseEntity<TodoResponseDto> getTodoById(@PathVariable String id) {
+        Todo todo = todoCrudService.getTodoById(id);
+        return ResponseEntity.ok(todoDtoMapper.toResponse(todo));
     }
 }
 
